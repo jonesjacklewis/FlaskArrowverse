@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arrowverse</title>
+
+    <style>
+        h1 {
+            text-align: center;
+        }
+
+        /* Horizontally center the table */
+        table {
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Add table borders */
+        table,
+        th,
+        td {
+            border: 1px solid black;
+        }
+
+        /* On Image click, show the image in a modal */
+        img {
+            cursor: pointer;
+            transition: 0.3s;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Arrowverse</h1>
+
+    <h2>Show</h2>
+
+    <table>
+        <thead>
+            {% for show in shows %}
+            <th style="background-color: {{show.background_color}};color:{{show.foreground_color}}">{{show.showname}}
+            </th>
+            {% endfor %}
+        </thead>
+
+
+        <tr>
+            {% for show in shows %}
+            <td style="background-color: {{show.background_color}};color:{{show.foreground_color}}">
+                <img src="{{ show.show_image }}" alt="Image for {{ show.showname }}" width="200px" height="auto">
+            </td>
+            {% endfor %}
+
+        </tr>
+    </table>
+
+
+    <h2>Episodes</h2>
+
+
+    <table>
+        <thead>
+            <th>Show Name</th>
+            <th>Season</th>
+            <th>Episode</th>
+            <th>Name</th>
+            <th>Airdate</th>
+            <th>Image</th>
+        </thead>
+        {% for episode in episodes %}
+        <tr style="background-color: {{episode.background_color}};color:{{episode.foreground_color}}">
+            <td>{{ episode.showname }}</td>
+            <td>{{ episode.season }}</td>
+            <td>{{ episode.episode }}</td>
+            <td>{{ episode.name }}</td>
+            <td>{{ episode.airdate }}</td>
+            <td>
+                <img src="{{ episode.image }}" alt="Image for {{ episode.name }}" onmouseover="bigImg(this)"
+                    onmouseout="normalImg(this)" width="250px" height="auto">
+            </td>
+
+        </tr>
+        {% endfor %}
+    </table>
+
+    <script>
+
+        function bigImg(x) {
+            x.style.width = "500px";
+            x.style.height = "auto";
+        }
+
+        function normalImg(x) {
+            x.style.width = "250px";
+            x.style.height = "auto";
+        }
+
+    </script>
+
+</body>
+
+</html>
