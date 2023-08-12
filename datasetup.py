@@ -2,11 +2,13 @@
 Sets up the database and saves the shows to the database.
 """
 
+# standard library full imports
 import json
 import os
 import requests
 import sqlite3
 
+# standard library partial imports
 from dataclasses import dataclass
 from typing import Any, Union
 
@@ -54,8 +56,9 @@ class Episode:
     air_date: str
     image: str
 
-JSON_DIRECTORY = "json"
-DB_FILENAME = "arrowverse.db"
+# constants
+JSON_DIRECTORY: str = "json"
+DB_FILENAME: str = "arrowverse.db"
 
 def create_sqlite_database() -> None:
     """
@@ -67,63 +70,65 @@ def create_sqlite_database() -> None:
         None
     """
 
-    conn = sqlite3.connect(DB_FILENAME)
-    cursor = conn.cursor()
+    with sqlite3.connect(DB_FILENAME) as conn:
+        cursor = conn.cursor()
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Shows (
-            ShowId INTEGER PRIMARY KEY AUTOINCREMENT,
-            Name TEXT NOT NULL,
-            BackgroundColor TEXT NOT NULL,
-            ForegroundColor TEXT NOT NULL,
-            Image TEXT
-        )
-    """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Shows (
+                ShowId INTEGER PRIMARY KEY AUTOINCREMENT,
+                Name TEXT NOT NULL,
+                BackgroundColor TEXT NOT NULL,
+                ForegroundColor TEXT NOT NULL,
+                Image TEXT
+            );
+        """
+                       )
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Seasons (
-            SeasonId INTEGER PRIMARY KEY AUTOINCREMENT,
-            ShowId INTEGER NOT NULL,
-            SeasonNumber INTEGER NOT NULL,
-            FOREIGN KEY(ShowId) REFERENCES Shows(ShowId)
-        )
-    """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Seasons (
+                SeasonId INTEGER PRIMARY KEY AUTOINCREMENT,
+                ShowId INTEGER NOT NULL,
+                SeasonNumber INTEGER NOT NULL,
+                FOREIGN KEY(ShowId) REFERENCES Shows(ShowId)
+            );
+        """
+                       )
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Episodes (
+                EpisodeId INTEGER PRIMARY KEY AUTOINCREMENT,
+                SeasonId INTEGER NOT NULL,
+                EpisodeNumber INTEGER NOT NULL,
+                Name TEXT NOT NULL,
+                AirDate TEXT NOT NULL,
+                Image TEXT,
+                FOREIGN KEY(SeasonId) REFERENCES Seasons(SeasonId)
+            );
+        """
+                       )
 
-    # episode number is not unique, but episode number + season number is
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Episodes (
-            EpisodeId INTEGER PRIMARY KEY AUTOINCREMENT,
-            SeasonId INTEGER NOT NULL,
-            EpisodeNumber INTEGER NOT NULL,
-            Name TEXT NOT NULL,
-            AirDate TEXT NOT NULL,
-            Image TEXT,
-            FOREIGN KEY(SeasonId) REFERENCES Seasons(SeasonId)
-        )
-    """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Watchlists (
+                WatchlistId INTEGER PRIMARY KEY AUTOINCREMENT,
+                WatchlistUUID TEXT NOT NULL UNIQUE,
+                DisplayName TEXT NOT NULL
+            );
+        """
+                       )
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Watchlists (
-            WatchlistId INTEGER PRIMARY KEY AUTOINCREMENT,
-            WatchlistUUID TEXT NOT NULL UNIQUE,
-            DisplayName TEXT NOT NULL
-        )           
-    """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS WatchlistItems (
+                WatchlistItemId INTEGER PRIMARY KEY AUTOINCREMENT,
+                WatchlistId INTEGER NOT NULL,
+                EpisodeId INTEGER NOT NULL,
+                Watched INTEGER DEFAULT 0,
+                FOREIGN KEY(WatchlistId) REFERENCES Watchlists(WatchlistId),
+                FOREIGN KEY(EpisodeId) REFERENCES Episodes(EpisodeId)
+            );
+        """
+                       )
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS WatchlistItems (
-            WatchlistItemId INTEGER PRIMARY KEY AUTOINCREMENT,
-            WatchlistId INTEGER NOT NULL,
-            EpisodeId INTEGER NOT NULL,
-            Watched INTEGER DEFAULT 0,
-            FOREIGN KEY(WatchlistId) REFERENCES Watchlists(WatchlistId),
-            FOREIGN KEY(EpisodeId) REFERENCES Episodes(EpisodeId)
-        )
-    """)
-
-    conn.commit()
-    conn.close()
+        conn.commit()
 
 def save_show(show_name: str, show_code: str, background_color: str, foreground_color: str) -> None:
     """
@@ -138,11 +143,9 @@ def save_show(show_name: str, show_code: str, background_color: str, foreground_
         None
     """
 
-    print(background_color, foreground_color)
-
     json_path: str = f'{JSON_DIRECTORY}/{show_name}.json'
 
-    show = None
+    show: Any = None
 
     if os.path.exists(json_path):
         # load json file
@@ -156,13 +159,12 @@ def save_show(show_name: str, show_code: str, background_color: str, foreground_
         print("Making request to API")
         url: str = f"https://api.tvmaze.com/shows/{show_code}?embed[]=episodes&embed[]=seasons"
         response = requests.get(url)
-    
 
     if response.status_code in [0, 200]:
 
         if not os.path.exists(JSON_DIRECTORY):
             os.makedirs(JSON_DIRECTORY)
-        
+
         if response.status_code == 200 and type(response) is requests.Response:
             show: Any = response.json()
 
@@ -171,73 +173,139 @@ def save_show(show_name: str, show_code: str, background_color: str, foreground_
                 with open(json_path, 'w') as f:
                     print("Writing JSON")
                     f.write(response.text)
-        
-        show_name = show['name']
-        print(show_name)
-        show_image = show['image']['original']
+
+        show_name_json: str = show['name']
+        show_image: Any = show['image']['original']
 
         # get seasons and episodes
 
-        conn = sqlite3.connect(DB_FILENAME)
-        cursor = conn.cursor()
+        with sqlite3.connect(DB_FILENAME) as conn:
+            cursor: sqlite3.Cursor = conn.cursor()
 
-        # create show object
-        show_obj = Show(show_name, show_image)
+            # create show object
+            show_obj: Show = Show(show_name_json, show_image)
 
-        # insert into database
-        cursor.execute("""
-            INSERT INTO Shows (Name, Image, BackgroundColor, ForegroundColor)
-            VALUES (?, ?, ?, ?)
-        """, (show_obj.name, show_obj.image, background_color, foreground_color))
-
-        # get show id
-        cursor.execute("""
-            SELECT ShowId FROM Shows WHERE Name = ?
-        """, (show_obj.name,))
-        show_id = cursor.fetchone()[0]
-
-        seasons = show['_embedded']['seasons']
-
-        for season in seasons:
-            season_number = season['number']
-
-            # create season object
-            season_obj = Season(season_number)
-
-            # insert into database
             cursor.execute("""
-                INSERT INTO Seasons (ShowId, SeasonNumber)
-                VALUES (?, ?)
-            """, (show_id, season_obj.season_number))
-        
-        # episodes
-        episodes = show['_embedded']['episodes']
+                INSERT
+                INTO Shows (
+                    Name,
+                    Image,
+                    BackgroundColor,
+                    ForegroundColor
+                )
+                VALUES (
+                        ?,
+                        ?,
+                        ?,
+                        ?
+                )
+            """, (show_obj.name, show_obj.image, background_color, foreground_color))
 
-        for episode in episodes:
-            season_number = episode['season']
-
-            # get season id
+            print(show_obj.name)
             cursor.execute("""
-                SELECT SeasonId FROM Seasons WHERE ShowId = ? AND SeasonNumber = ?
-            """, (show_id, season_number))
-            season_id = cursor.fetchone()[0]
+                SELECT
+                ShowId
+                From Shows
+                WHERE
+                Name = ?
+            """, (show_obj.name,))
 
-            episode_number = episode['number']
-            episode_name = episode['name']
-            episode_air_date = episode['airdate']
-            episode_image = episode['image']['original']
+            show_id: int = cursor.fetchone()[0]
 
-            # create episode object
-            episode_obj = Episode(episode_number, episode_name, episode_air_date, episode_image)
+            seasons: Any = show['_embedded']['seasons']
 
-            # insert into database
-            cursor.execute("""
-                INSERT INTO Episodes (SeasonId, EpisodeNumber, Name, AirDate, Image)
-                VALUES (?, ?, ?, ?, ?)
-            """, (season_id, episode_obj.episode_number, episode_obj.name, episode_obj.air_date, episode_obj.image))
+            for season in seasons:
+                season_number: Any = season['number']
 
-        conn.commit()
-        conn.close()
+                if not str(season_number).isdigit():
+                    raise TypeError("Season Number isn't an integer!")
+
+                season_number = int(season_number)
+
+                # create season object
+                season_obj = Season(season_number)
+
+                cursor.execute("""
+                    INSERT INTO
+                    Seasons (
+                        ShowId,
+                        SeasonNumber
+                    )
+                    VALUES (
+                        ?,
+                        ?
+                    )
+                """, (show_id, season_obj.season_number))
+
+            # episodes
+            episodes: Any = show['_embedded']['episodes']
+
+            for episode in episodes:
+                season_number: Any = episode['season']
+
+                if not str(season_number).isdigit():
+                    raise TypeError("Season Number is not an integer!")
+
+                season_number = int(season_number)
+
+                cursor.execute("""
+                    SELECT
+                    SeasonId
+                    FROM
+                    Seasons
+                    WHERE
+                    ShowId = ?
+                    AND SeasonNumber = ?
+                """, (show_id, season_number))
+
+                season_id: int = cursor.fetchone()[0]
+
+                episode_number: Any = episode['number']
+
+                if not str(episode_number).isdigit():
+                    raise TypeError("Episode Number isn't an integer!")
+
+                episode_number = int(episode_number)
+
+                episode_name: str = str(episode['name'])
+                episode_air_date: str = str(episode['airdate'])
+                episode_image: str = str(episode['image']['original'])
+
+                # create episode object
+                episode_obj = Episode(
+                    episode_number,
+                    episode_name,
+                    episode_air_date,
+                    episode_image
+                )
+
+                cursor.execute(
+                    """
+                    INSERT INTO
+                    Episodes (
+                        SeasonId,
+                        EpisodeNumber,
+                        Name,
+                        AirDate,
+                        Image
+                    )
+                    VALUES (
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?
+                    )
+                    """, (
+                        season_id,
+                        episode_obj.episode_number,
+                        episode_obj.name,
+                        episode_obj.air_date,
+                        episode_obj.image
+                    )
+                )
+
+            conn.commit()
 
 def main() -> None:
     """
@@ -261,7 +329,8 @@ def main() -> None:
     ]
 
     for show in shows:
-        save_show(show.showname, show.showcode, show.background_color, show.foreground_color)
+        save_show(show.showname, show.showcode,
+                  show.background_color, show.foreground_color)
 
 if __name__ == "__main__":
     main()
