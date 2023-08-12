@@ -103,6 +103,25 @@ def create_sqlite_database() -> None:
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Watchlists (
+            WatchlistId INTEGER PRIMARY KEY AUTOINCREMENT,
+            WatchlistUUID TEXT NOT NULL UNIQUE,
+            DisplayName TEXT NOT NULL
+        )           
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS WatchlistItems (
+            WatchlistItemId INTEGER PRIMARY KEY AUTOINCREMENT,
+            WatchlistId INTEGER NOT NULL,
+            EpisodeId INTEGER NOT NULL,
+            Watched INTEGER DEFAULT 0,
+            FOREIGN KEY(WatchlistId) REFERENCES Watchlists(WatchlistId),
+            FOREIGN KEY(EpisodeId) REFERENCES Episodes(EpisodeId)
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -154,6 +173,7 @@ def save_show(show_name: str, show_code: str, background_color: str, foreground_
                     f.write(response.text)
         
         show_name = show['name']
+        print(show_name)
         show_image = show['image']['original']
 
         # get seasons and episodes

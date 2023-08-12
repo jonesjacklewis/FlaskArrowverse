@@ -3,3 +3,4 @@ json
 .vscode
 venv
 .DS_Store
+backups

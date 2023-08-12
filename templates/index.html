@@ -35,6 +35,22 @@
 <body>
     <h1>Arrowverse</h1>
 
+    <h2>
+        <span id="watchlistDisplayName">{{watchlist_display_name}}</span> (
+        <span id="watchlistUUID">{{watchlist_uuid}}</span>)
+    </h2>
+
+
+    <div style="position: absolute;margin-left: auto;margin-right: auto;">
+        <button id="btnResetFilter">Reset Filter</button>
+
+        
+
+        <button id="btnLoadLatest">Load Latest Watchlist</button>
+        <button id="btnCreate">Create New Watchlist</button>
+        <button id="btnSaveWatchlist">Save Watchlist</button>
+    </div>
+
     <h2>Show</h2>
 
     <table>
@@ -68,6 +84,7 @@
             <th>Name</th>
             <th>Airdate</th>
             <th>Image</th>
+            <th>Watched</th>
         </thead>
         {% for episode in episodes %}
         <tr style="background-color: {{episode.background_color}};color:{{episode.foreground_color}}">
@@ -80,12 +97,51 @@
                 <img src="{{ episode.image }}" alt="Image for {{ episode.name }}" onmouseover="bigImg(this)"
                     onmouseout="normalImg(this)" width="250px" height="auto">
             </td>
+            <td>
+                <input type="checkbox" id="watched-{{episode.episode_id}}" name="watched" value="{{ episode.watched }}"
+                    {% if episode.watched==1 %}checked{% endif %}>
+            </td>
 
         </tr>
         {% endfor %}
     </table>
 
     <script>
+
+        const checkboxes = [...document.querySelectorAll('input[type=checkbox]')];
+
+        const changedIds = [];
+
+        // add event listener to each checkbox
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                e.preventDefault();
+
+                // get the episode id
+                const episodeId = checkbox.id.split('-')[1];
+
+                // watchstate object
+                const watchstate = {
+                    episode_id: episodeId,
+                    watched: checkbox.checked ? 1 : 0
+                }
+
+                // check if changedIds already contains the episode id
+                const index = changedIds.findIndex((changedId) => {
+                    return changedId.episode_id === episodeId;
+                });
+
+                // if it is in the array, remove it
+                if (index > -1) {
+                    changedIds.splice(index, 1);
+                }else{
+                    // otherwise add it
+                    changedIds.push(watchstate);
+                }
+            
+            })
+        })
+
 
         function bigImg(x) {
             x.style.width = "500px";
@@ -96,6 +152,119 @@
             x.style.width = "250px";
             x.style.height = "auto";
         }
+
+        const btnResetFilter = document.getElementById('btnResetFilter');
+        const btnCreate = document.getElementById('btnCreate');
+        const btnSaveWatchlist = document.getElementById('btnSaveWatchlist');
+        const btnLoadLatest = document.getElementById('btnLoadLatest');
+
+        btnResetFilter.addEventListener('click', (e) => {
+            e.preventDefault();
+
+            // check if uri contains watchlist in query string
+            const urlParams = new URLSearchParams(window.location.search);
+            const watchlistUUID = urlParams.get('watchlist');
+
+            if(watchlistUUID){
+                // navigate to the latest watchlist
+                window.location.href =`/?watchlist=${watchlistUUID}`;
+            }else{
+                window.location.href =`/`;
+            }
+
+        })
+
+
+        btnLoadLatest.addEventListener("click", (e) => {
+            e.preventDefault();
+
+            console.log("Load latest watchlist")
+
+            try{
+                const watchlistUUID = localStorage.getItem('watchlistUUID');
+
+                // navigate to the latest watchlist
+                window.location.href = `/?watchlist=${watchlistUUID}`;
+            }catch{
+                alert("No watchlist found");
+            }
+        })
+
+
+        btnCreate.addEventListener("click", (e) => {
+            e.preventDefault();
+
+            // generate a random UUID
+            const uuid = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
+            // prompt the user for a display name
+            const watchlistDisplayName = prompt("Please enter a display name for your watchlist", "My Watchlist");
+
+            const spanWatchlistDisplayName = document.getElementById('watchlistDisplayName');
+            const spanWatchlistUUID = document.getElementById('watchlistUUID');
+
+            spanWatchlistDisplayName.innerHTML = watchlistDisplayName;
+            spanWatchlistUUID.innerHTML = uuid;
+
+
+
+            // get all the checkboxes
+            const checkboxes = document.querySelectorAll('input[type=checkbox]');
+
+            // uncheck all the checkboxes
+            checkboxes.forEach((checkbox) => {
+                checkbox.checked = false;
+            });
+
+            // Add UUID and display name to local storage
+            localStorage.setItem('watchlistUUID', uuid);
+            localStorage.setItem('watchlistDisplayName', watchlistDisplayName);
+
+            // Add UUID to query string
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.set('watchlist', uuid);
+            window.location.search = urlParams;
+        });
+
+        btnSaveWatchlist.addEventListener("click", (e) => {
+            e.preventDefault();
+
+            // get the watchlist UUID
+            const watchlistUUID = localStorage.getItem('watchlistUUID');
+
+            // get the watchlist display name
+            const watchlistDisplayName = localStorage.getItem('watchlistDisplayName');
+
+            const data = {
+                watchlist_uuid: watchlistUUID,
+                watchlist_display_name: watchlistDisplayName,
+                episode_watch_states: changedIds
+            };
+
+            // send the data to the server
+            fetch('http://127.0.0.1:5000/save_watchlist', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data),
+            });
+
+            alert("Watchlist saved successfully");
+
+            // clear the changedIds array
+            changedIds.length = 0;
+
+        });
+
+        window.addEventListener('beforeunload', function (e) {
+            if(changedIds.length > 0){
+                e.preventDefault();
+                e.returnValue = ''; // Modern browsers require a non-empty string here
+                return 'Are you sure you want to leave this page? Any unsaved changes will be lost.';
+            }
+        });
+
 
     </script>
 
