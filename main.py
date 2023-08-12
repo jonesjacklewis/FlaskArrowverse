@@ -413,8 +413,13 @@ def filter_arrowverse_items(
 
     shownames_list: list[str] = allowed_shows.split(',')
 
-    shownames_list = [showname_map[showname.lower()]
+    shownames_list = [showname_map.get(showname, "N/a")
                       for showname in shownames_list]
+    
+    shownames_list = [showname for showname in shownames_list if showname != "N/a"]
+
+    if len(shownames_list) == 0:
+        return shows
 
     return [
         item
